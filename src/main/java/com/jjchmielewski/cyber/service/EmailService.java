@@ -57,8 +57,7 @@ public class EmailService {
     }
 
     private String formatMessage(String message, String uuid) {
-        message = message.replace("$message.badUrl", "http://localhost:8080/email?uuid="+ uuid);
-        //TODO save hash to DB
+        message = message.replace("%message.badUrl", "http://localhost:8080/email?uuid="+ uuid);
         return message;
     }
 
@@ -121,6 +120,7 @@ public class EmailService {
         prop.put("mail.smtp.port", "2525");
         prop.put("mail.smtp.ssl.trust", "smtp.mailtrap.io");
 
+        //TODO zaciagac z env
         Session session = Session.getInstance(prop, new Authenticator() {
             @Override
             protected PasswordAuthentication getPasswordAuthentication() {
@@ -198,9 +198,7 @@ public class EmailService {
             emailData.setUuid(uuid);
             emailData.setEmailReceiver(receiver);
             emailDataRepository.save(emailData);
-
-            System.out.println(receiver.getEmail() + " | " + sender + " | " + subject + " :\n" + message);
-            //sendEmail(receiver, sender, subject, message);
+            sendEmail(receiver.getEmail(), sender, subject, message);
         }
     }
 }
