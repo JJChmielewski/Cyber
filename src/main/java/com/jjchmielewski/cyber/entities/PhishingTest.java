@@ -26,6 +26,7 @@ public class PhishingTest {
     private String message = null;
     private String messageCategory = null;
     private boolean saveTest = false;
+    private int points = 0;
 
     public PhishingTest() {
     }

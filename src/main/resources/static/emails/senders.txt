@@ -1,2 +1,0 @@
-default1@cyber.com
-default2@cyber.com

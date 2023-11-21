@@ -1,5 +1,7 @@
 package com.jjchmielewski.cyber.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonMappingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.jjchmielewski.cyber.entities.EmailData;
 import com.jjchmielewski.cyber.entities.PhishingTest;
@@ -14,6 +16,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.*;
 import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class EmailService {
@@ -23,6 +27,8 @@ public class EmailService {
     private String emailTemplatesDir = userDefinedDataRoot + "emails/";
     private String savedTestsDir = userDefinedDataRoot + "tests/";
     private Random random = new Random();
+    private String[] properties = new String[]{"subjects", "senders", "points"};
+    private int maxPoints = 10;
 
     @Autowired
     private ReceiverRepository receiverRepository;
@@ -35,13 +41,22 @@ public class EmailService {
     }
 
     @Transactional
-    public String checkEmailByUuid(String uuid) {
+    public String checkEmailByUuid(String uuid, boolean wasReported) {
         Receiver receiver = receiverRepository.findByEmailData_Uuid(uuid);
         if (receiver != null) {
-            receiver.setPoints(receiver.getPoints() - 5);
+            EmailData emailData = receiver.getEmailData().stream().filter(email -> email.getUuid().equals(uuid)).findAny().get();
+
+            if (wasReported) {
+                receiver.setPoints(receiver.getPoints() + emailData.getPoints());
+            } else {
+                int negativePoints = 10 - emailData.getPoints();
+                receiver.setPoints(receiver.getPoints() - negativePoints);
+            }
+
+            receiver.getEmailData().remove(emailData);
             receiverRepository.save(receiver);
-            emailDataRepository.deleteByUuid(uuid);
-            return "FAILED";
+            emailDataRepository.delete(emailData);
+            return wasReported ? "PASSED" : "FAILED";
         }
         return "NOTHING HAPPENED";
     }
@@ -56,8 +71,17 @@ public class EmailService {
         return getFileContent(htmlFile);
     }
 
-    private String formatMessage(String message, String uuid) {
+    private String formatMessage(String message, String uuid, String category) {
         message = message.replace("%message.badUrl", "http://localhost:8080/email?uuid="+ uuid);
+
+        File resourcesDir = new File(emailTemplatesDir + category + "/resources/");
+        if (resourcesDir.exists() && resourcesDir.isDirectory()) {
+            for (File file : resourcesDir.listFiles()) {
+                String imageNumber = file.getName().split("_")[0];
+                message = message.replace("%message.resource"+imageNumber, String.format("http://localhost:8080/resource?category=%s&name=%s", category, file.getName()));
+            }
+        }
+
         return message;
     }
 
@@ -82,9 +106,41 @@ public class EmailService {
         return array[random.nextInt(array.length)];
     }
 
-    private String getSubject(String emailCategory) {
-        File subjectsFile = new File(emailTemplatesDir + emailCategory + "/subjects.txt");
-        return getRandomFromArray(getFileContent(subjectsFile).split("\n"));
+    private String getSubject(String message)  {
+        ObjectMapper objectMapper = new ObjectMapper();
+        try {
+            String subjectsArrayString = getMessagePropertyString(message, "subjects");
+            String[] subjects = objectMapper.readValue(subjectsArrayString, String[].class);
+            return getRandomFromArray(subjects);
+        } catch (JsonMappingException e) {
+            e.printStackTrace();
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return "";
+    }
+
+    private String getMessagePropertyString(String message, String property) {
+        Pattern pattern = Pattern.compile("%message\\." + property + "=\\{[^}]*\\}");
+        Matcher matcher = pattern.matcher(message);
+        if (matcher.find()) {
+            String result = matcher.group(0);
+            result = result.replace("%message."+property+"={", "");
+            result = result.replace("}", "");
+            return result;
+        }
+        return "";
+    }
+
+    private String removePropertiesFromMessage(String message) {
+        for (String property : properties) {
+            Pattern pattern = Pattern.compile("%message\\." + property + "=\\{[^}]*\\}");
+            Matcher matcher = pattern.matcher(message);
+            if (matcher.find()) {
+                message = matcher.replaceAll("");
+            }
+        }
+        return message;
     }
 
     private String getEmailCategory() {
@@ -92,14 +148,23 @@ public class EmailService {
         return ((File) getRandomFromArray(Arrays.stream(emailTemplateRootDir.listFiles()).filter(category -> category.isDirectory()).toArray())).getName();
     }
 
-    private String getSender(String emailCategory) {
-        File sendersFile = new File(emailTemplatesDir + emailCategory + "/senders.txt");
-        String sendersFileContent = getFileContent(sendersFile);
-        if (sendersFileContent.isEmpty()) {
-            sendersFile = new File(emailTemplatesDir + "senders.txt");
-            sendersFileContent = getFileContent(sendersFile);
+    private String getSender(String message) {
+        ObjectMapper objectMapper = new ObjectMapper();
+        try {
+            String sendersArrayString = getMessagePropertyString(message, "senders");
+            String[] senders = objectMapper.readValue(sendersArrayString, String[].class);
+            return getRandomFromArray(senders);
+        } catch (JsonMappingException e) {
+            e.printStackTrace();
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
         }
-        return getRandomFromArray(sendersFileContent.split("\n"));
+        return "";
+    }
+
+    private int getPoints(String message) {
+        String pointsString = getMessagePropertyString(message, "points");
+        return Integer.parseInt(pointsString);
     }
 
     private PhishingTest getPhishingTest(String testName) {
@@ -190,15 +255,19 @@ public class EmailService {
             String uuid = UUID.randomUUID().toString();
             String category = phishingTest.getMessageCategory() == null ? getEmailCategory() : phishingTest.getMessageCategory();
             String message = phishingTest.getMessage() == null ? getMessage(category) : getMessage(category, phishingTest.getMessage());
-            String subject = phishingTest.getSubjects()  == null ? getSubject(category) : getRandomFromArray(phishingTest.getSubjects());
-            String sender = phishingTest.getSenders() == null ? getSender(category) : getRandomFromArray(phishingTest.getSenders());
+            String subject = phishingTest.getSubjects()  == null ? getSubject(message) : getRandomFromArray(phishingTest.getSubjects());
+            String sender = phishingTest.getSenders() == null ? getSender(message) : getRandomFromArray(phishingTest.getSenders());
+            int points = phishingTest.getPoints() == 0 ? getPoints(message) : phishingTest.getPoints();
 
-            message = formatMessage(message, uuid);
+            message = removePropertiesFromMessage(message);
+            message = formatMessage(message, uuid, category);
             EmailData emailData = new EmailData();
             emailData.setUuid(uuid);
             emailData.setEmailReceiver(receiver);
+            emailData.setPoints(points);
             emailDataRepository.save(emailData);
-            sendEmail(receiver.getEmail(), sender, subject, message);
+            System.out.println(receiver.getEmail() + " | " + sender + " | " + subject + " | " + points +" | \n" + message);
+            //sendEmail(receiver.getEmail(), sender, subject, message);
         }
     }
 }
