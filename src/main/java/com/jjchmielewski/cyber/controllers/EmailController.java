@@ -25,7 +25,7 @@ public class EmailController {
     @PostMapping()
     public void sendEmail(@RequestBody(required = false) PhishingTest phishingTest, String testName) {
         if (phishingTest != null) {
-            emailService.constructAndSendEmails(phishingTest);
+            emailService.saveTestAndConstruct(phishingTest);
             return;
         }
         if (testName != null && !testName.isEmpty()) {

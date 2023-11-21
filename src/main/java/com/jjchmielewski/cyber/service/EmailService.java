@@ -237,10 +237,6 @@ public class EmailService {
     @Transactional
     public void constructAndSendEmails(PhishingTest phishingTest) {
 
-        if (phishingTest.isSaveTest()) {
-            phishingTest.saveAsJson(savedTestsDir);
-        }
-
         List<Receiver> receivers = receiverRepository.findAllByEmailIn(phishingTest.getReceivers());
         if (receivers.isEmpty()) {
             String[] receiverRoles = phishingTest.getReceiverRoles();
@@ -269,5 +265,12 @@ public class EmailService {
             System.out.println(receiver.getEmail() + " | " + sender + " | " + subject + " | " + points +" | \n" + message);
             //sendEmail(receiver.getEmail(), sender, subject, message);
         }
+    }
+
+    public void saveTestAndConstruct(PhishingTest phishingTest) {
+        if (phishingTest.isSaveTest()) {
+            phishingTest.saveAsJson(savedTestsDir);
+        }
+        constructAndSendEmails(phishingTest);
     }
 }
