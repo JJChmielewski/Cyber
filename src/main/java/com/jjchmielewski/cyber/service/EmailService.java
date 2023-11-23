@@ -11,6 +11,7 @@ import com.jjchmielewski.cyber.repository.ReceiverRepository;
 import jakarta.mail.*;
 import jakarta.mail.internet.MimeMessage;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,22 +23,40 @@ import java.util.regex.Pattern;
 @Service
 public class EmailService {
 
-    //TODO get it from properties
-    private String userDefinedDataRoot = "C:/Users/Chmielu/IdeaProjects/Cyber/src/main/resources/static/";
-    private String emailTemplatesDir = userDefinedDataRoot + "emails/";
-    private String savedTestsDir = userDefinedDataRoot + "tests/";
+    private String userDefinedDataRoot;
+    private int mailPort;
+    private String username;
+    private String password;
+    private String domain;
+    private String host;
+    private int maxPoints;
+    private boolean development;
+    private String emailTemplatesDir;
+    private String savedTestsDir;
     private Random random = new Random();
     private String[] properties = new String[]{"subjects", "senders", "points"};
-    private int maxPoints = 10;
-
-    @Autowired
     private ReceiverRepository receiverRepository;
-
-    @Autowired
     private EmailDataRepository emailDataRepository;
 
-    public String test() {
-        return "TEST";
+    @Autowired
+    public EmailService(@Value("${cyber.templatesRoot}") String userDefinedDataRoot,
+                        @Value("${cyber.mail.port}") int mailPort, @Value("${cyber.mail.username}") String username,
+                        @Value("${cyber.mail.password}") String password,@Value("${cyber.mail.domain}") String domain,
+                        @Value("${cyber.mail.host}") String host, @Value("${cyber.maxPoints}") int maxPoints,
+                        @Value("${cyber.development}") boolean development,
+                        ReceiverRepository receiverRepository, EmailDataRepository emailDataRepository) {
+        this.userDefinedDataRoot = userDefinedDataRoot;
+        this.mailPort = mailPort;
+        this.username = username;
+        this.password = password;
+        this.domain = domain;
+        this.host = host;
+        this.maxPoints = maxPoints;
+        this.development = development;
+        this.receiverRepository = receiverRepository;
+        this.emailDataRepository = emailDataRepository;
+        this.emailTemplatesDir = userDefinedDataRoot + "emails/";
+        this.savedTestsDir = userDefinedDataRoot + "tests/";
     }
 
     @Transactional
@@ -49,7 +68,7 @@ public class EmailService {
             if (wasReported) {
                 receiver.setPoints(receiver.getPoints() + emailData.getPoints());
             } else {
-                int negativePoints = 10 - emailData.getPoints();
+                int negativePoints = maxPoints - emailData.getPoints();
                 receiver.setPoints(receiver.getPoints() - negativePoints);
             }
 
@@ -72,15 +91,18 @@ public class EmailService {
     }
 
     private String formatMessage(String message, String uuid, String category) {
-        message = message.replace("%message.badUrl", "http://localhost:8080/email?uuid="+ uuid);
+        message = message.replace("%message.badUrl", String.format("http://%s/email?uuid=%s", development ? "localhost:8080" : domain, uuid));
 
         File resourcesDir = new File(emailTemplatesDir + category + "/resources/");
         if (resourcesDir.exists() && resourcesDir.isDirectory()) {
             for (File file : resourcesDir.listFiles()) {
                 String imageNumber = file.getName().split("_")[0];
-                message = message.replace("%message.resource"+imageNumber, String.format("http://localhost:8080/resource?category=%s&name=%s", category, file.getName()));
+                message = message.replace("%message.resource"+imageNumber, String.format("http://%s/resource?category=%s&name=%s",development ? "localhost:8080" : domain,
+                        category, file.getName()));
             }
         }
+        String uuidElement = String.format("<p hidden id='cyberUUID'>%s</p>", uuid);
+        message += uuidElement;
 
         return message;
     }
@@ -181,15 +203,15 @@ public class EmailService {
         Properties prop = new Properties();
         prop.put("mail.smtp.auth", true);
         prop.put("mail.smtp.starttls.enable", "true");
-        prop.put("mail.smtp.host", "smtp.mailtrap.io");
-        prop.put("mail.smtp.port", "2525");
-        prop.put("mail.smtp.ssl.trust", "smtp.mailtrap.io");
+        prop.put("mail.smtp.host", host);
+        prop.put("mail.smtp.domain", domain);
+        prop.put("mail.smtp.port", mailPort);
+        prop.put("mail.smtp.ssl.trust", host);
 
-        //TODO zaciagac z env
         Session session = Session.getInstance(prop, new Authenticator() {
             @Override
             protected PasswordAuthentication getPasswordAuthentication() {
-                return new PasswordAuthentication("d4e8e653c426cc", "038c8a3a7de408");
+                return new PasswordAuthentication(username, password);
             }
         });
         MimeMessage mimeMessage = new MimeMessage(session);
@@ -199,7 +221,7 @@ public class EmailService {
             mimeMessage.setFrom(sender);
             mimeMessage.setContent(message, "text/html; charset=utf-8");
 
-            //Transport.send(mimeMessage);
+            Transport.send(mimeMessage);
         } catch (MessagingException messagingException) {
             messagingException.printStackTrace();
         }
@@ -263,7 +285,7 @@ public class EmailService {
             emailData.setPoints(points);
             emailDataRepository.save(emailData);
             System.out.println(receiver.getEmail() + " | " + sender + " | " + subject + " | " + points +" | \n" + message);
-            //sendEmail(receiver.getEmail(), sender, subject, message);
+            sendEmail(receiver.getEmail(), sender, subject, message);
         }
     }
 

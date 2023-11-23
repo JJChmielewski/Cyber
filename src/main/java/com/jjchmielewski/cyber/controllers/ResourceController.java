@@ -1,6 +1,7 @@
 package com.jjchmielewski.cyber.controllers;
 
 import org.apache.commons.io.IOUtils;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,8 +16,13 @@ import java.io.*;
 @RequestMapping("/resource")
 public class ResourceController {
 
-    private String userDefinedDataRoot = "C:/Users/Chmielu/IdeaProjects/Cyber/src/main/resources/static/";
-    private String emailTemplatesDir = userDefinedDataRoot + "emails/";
+    private String userDefinedDataRoot;
+    private String emailTemplatesDir;
+
+    public ResourceController(@Value("${cyber.templatesRoot}") String userDefinedDataRoot) {
+        this.userDefinedDataRoot = userDefinedDataRoot;
+        this.emailTemplatesDir = userDefinedDataRoot + "emails/";
+    }
 
     @GetMapping(produces = MediaType.IMAGE_PNG_VALUE)
     public @ResponseBody byte[] getImage(@RequestParam("category") String category, @RequestParam("name") String name) throws IOException {
