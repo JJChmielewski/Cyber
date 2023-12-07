@@ -1,4 +1,4 @@
-package com.jjchmielewski.cyber.entities;
+package com.jjchmielewski.cyber.classes;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,6 +19,7 @@ public class PhishingTest {
     private String testName = "";
     private String[] receivers = null;
     private String[] receiverRoles = null;
+    private boolean sendToAll = true;
 
     private String[] senders = null;
     private String[] subjects = null;

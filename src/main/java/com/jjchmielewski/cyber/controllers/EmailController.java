@@ -1,6 +1,6 @@
 package com.jjchmielewski.cyber.controllers;
 
-import com.jjchmielewski.cyber.entities.PhishingTest;
+import com.jjchmielewski.cyber.classes.PhishingTest;
 import com.jjchmielewski.cyber.service.EmailService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +19,9 @@ public class EmailController {
 
     @GetMapping("/report")
     public String report(String uuid) {
+        if (uuid == null || uuid.isEmpty()) {
+            return "THIS IS NOT A TEST EMAIL. PLEASE REPORT IT TO YOUR ADMINISTRATOR";
+        }
         return emailService.checkEmailByUuid(uuid, true);
     }
 
