@@ -8,8 +8,14 @@ import com.jjchmielewski.cyber.entities.PhishingTest;
 import com.jjchmielewski.cyber.entities.Receiver;
 import com.jjchmielewski.cyber.repository.EmailDataRepository;
 import com.jjchmielewski.cyber.repository.ReceiverRepository;
+import jakarta.activation.DataHandler;
+import jakarta.activation.DataSource;
 import jakarta.mail.*;
+import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
+import jakarta.mail.util.ByteArrayDataSource;
+import org.apache.commons.io.IOUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -90,21 +96,40 @@ public class EmailService {
         return getFileContent(htmlFile);
     }
 
-    private String formatMessage(String message, String uuid, String category) {
-        message = message.replace("%message.badUrl", String.format("http://%s/email?uuid=%s", development ? "localhost:8080" : domain, uuid));
+    private MimeMultipart formatMessage(String message, String uuid, String category) {
+        MimeMultipart multipart = new MimeMultipart("related");
 
-        File resourcesDir = new File(emailTemplatesDir + category + "/resources/");
-        if (resourcesDir.exists() && resourcesDir.isDirectory()) {
-            for (File file : resourcesDir.listFiles()) {
-                String imageNumber = file.getName().split("_")[0];
-                message = message.replace("%message.resource"+imageNumber, String.format("http://%s/resource?category=%s&name=%s",development ? "localhost:8080" : domain,
-                        category, file.getName()));
-            }
-        }
-        String uuidElement = String.format("<p hidden id='cyberUUID'>%s</p>", uuid);
+        message = message.replace("%message.badUrl", String.format("http://%s/email?uuid=%s", development ? "127.0.0.1:8080" : domain, uuid));
+        String uuidElement = String.format("<p cyberUUID=\"%s\"></p>", uuid);
         message += uuidElement;
 
-        return message;
+        try {
+            MimeBodyPart messageBody = new MimeBodyPart();
+            messageBody.setContent(message, "text/html");
+            multipart.addBodyPart(messageBody);
+
+            File resourcesDir = new File(emailTemplatesDir + category + "/resources/");
+            if (resourcesDir.exists() && resourcesDir.isDirectory()) {
+                for (File file : resourcesDir.listFiles()) {
+                    String imageNumber = file.getName().split("_")[0];
+
+                    BodyPart messageBodyPart = new MimeBodyPart();
+                    InputStream imageStream = new FileInputStream(file);
+                    DataSource fds = new ByteArrayDataSource(IOUtils.toByteArray(imageStream), "image/gif");
+                    messageBodyPart.setDataHandler(new DataHandler(fds));
+                    messageBodyPart.setHeader("Content-ID", String.format("<image_%s>", imageNumber));
+                    multipart.addBodyPart(messageBodyPart);
+
+                }
+            }
+        } catch (MessagingException e) {
+            throw new RuntimeException(e);
+        } catch (FileNotFoundException e) {
+            throw new RuntimeException(e);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return multipart;
     }
 
     private String getFileContent(File file) {
@@ -199,10 +224,10 @@ public class EmailService {
         return null;
     }
 
-    public void sendEmail(String receiver, String sender, String subject, String message) {
+    public void sendEmail(String receiver, String sender, String subject, String message, String uuid, String category) {
         Properties prop = new Properties();
         prop.put("mail.smtp.auth", true);
-        prop.put("mail.smtp.starttls.enable", "true");
+        prop.put("mail.smtp.ssl.enable", "true");
         prop.put("mail.smtp.host", host);
         prop.put("mail.smtp.domain", domain);
         prop.put("mail.smtp.port", mailPort);
@@ -219,7 +244,7 @@ public class EmailService {
             mimeMessage.setRecipients(Message.RecipientType.TO, receiver);
             mimeMessage.setSubject(subject);
             mimeMessage.setFrom(sender);
-            mimeMessage.setContent(message, "text/html; charset=utf-8");
+            mimeMessage.setContent(formatMessage(message, uuid, category));
 
             Transport.send(mimeMessage);
         } catch (MessagingException messagingException) {
@@ -278,14 +303,13 @@ public class EmailService {
             int points = phishingTest.getPoints() == 0 ? getPoints(message) : phishingTest.getPoints();
 
             message = removePropertiesFromMessage(message);
-            message = formatMessage(message, uuid, category);
             EmailData emailData = new EmailData();
             emailData.setUuid(uuid);
             emailData.setEmailReceiver(receiver);
             emailData.setPoints(points);
             emailDataRepository.save(emailData);
             System.out.println(receiver.getEmail() + " | " + sender + " | " + subject + " | " + points +" | \n" + message);
-            sendEmail(receiver.getEmail(), sender, subject, message);
+            sendEmail(receiver.getEmail(), sender, subject, message, uuid, category);
         }
     }
 
