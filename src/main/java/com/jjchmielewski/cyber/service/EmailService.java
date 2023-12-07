@@ -100,12 +100,12 @@ public class EmailService {
         MimeMultipart multipart = new MimeMultipart("related");
 
         message = message.replace("%message.badUrl", String.format("http://%s/email?uuid=%s", development ? "127.0.0.1:8080" : domain, uuid));
-        String uuidElement = String.format("<p cyberUUID=\"%s\"></p>", uuid);
+        String uuidElement = String.format("<p style=\"display: none;\">cyberID=\"%s\"</p>", uuid);
         message += uuidElement;
 
         try {
             MimeBodyPart messageBody = new MimeBodyPart();
-            messageBody.setContent(message, "text/html");
+            messageBody.setContent(message, "text/html; charset=utf-8");
             multipart.addBodyPart(messageBody);
 
             File resourcesDir = new File(emailTemplatesDir + category + "/resources/");
@@ -119,7 +119,6 @@ public class EmailService {
                     messageBodyPart.setDataHandler(new DataHandler(fds));
                     messageBodyPart.setHeader("Content-ID", String.format("<image_%s>", imageNumber));
                     multipart.addBodyPart(messageBodyPart);
-
                 }
             }
         } catch (MessagingException e) {

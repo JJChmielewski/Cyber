@@ -4,11 +4,6 @@ spring.datasource.username=<your DB username>
 spring.datasource.password=<your DB password>
 spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
 
-cyber.mail.host=<your host>
-cyber.mail.domain=<your domain>
-cyber.mail.username=<your username>
-cyber.mail.password=<your password>
-cyber.mail.port=<your port>
 cyber.templatesRoot=<path to your templates directory>
 cyber.maxPoints=10
 cyber.development=false
