@@ -62,11 +62,10 @@ All template parameters are explained in the table below.
 |  %message.subjects   |    True     |                                                               List of subjects that can be chosen for the given email template                                                                |
 |   %message.senders   |    True     |                                                                 List of senders that can be chosen for a given email template                                                                 |
 |   %message.points    |    True     | Number of points that will be granted to the receiver when the email is reported.<br/>The number of points deducted upon clicking a link will be `maxPoints` (set in properties) - this value |
-| %message.resource{i} |    False    |                                        URL that will lead to the image added in `resources` directory. The {i} paremeter is the number in image name.                                         |
 
 # Endpoints
 
-Cyber is operated via rest endpoints and json files containing phishing campaigns located in `<your templaets root>/tests`. The example JSON file can be found below.
+Cyber is operated via rest endpoints and json files containing phishing campaigns located in `<your templates root>/tests`. The example JSON file can be found below.
 
 ```json
 {
@@ -90,6 +89,7 @@ Cyber is operated via rest endpoints and json files containing phishing campaign
 |     message     |  String  |      ""       |   Name of the template in the category. Requires `messageCategory` to also be set. If empty random template from category will be chosen.    |
 | messageCategory |  String  |      ""       |                   Name of the category from which templates will be chosen from. If empty random category will be chosen.                    |
 |    saveTest     | boolean  |     false     | Specifies whether the test will be saved in `<your templaets root>/tests`. If JSON with name `testName` already exists it will be overriden. |
+|    sendToAll    | boolean  |     true      |      Specifies whether the test will be sent to all users. If the roles are specified it will send test to all users with given roles.       |
 
 The usage of endpoints used for triggering tests is listed in the table below.
 
